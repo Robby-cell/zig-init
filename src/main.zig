@@ -20,7 +20,7 @@ fn usage() void {
         \\Usage:
         \\  {s} <init-type>
         \\  
-        \\  [init-type] {{ exe, lib }}
+        \\  [init-type] {{ exe, lib, c++ }}
         \\
     , .{exe_name}) catch unreachable;
 }
