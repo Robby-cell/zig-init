@@ -8,6 +8,9 @@ const build_exe = @embedFile("root/build_exe.zig");
 const build_lib = @embedFile("root/build_lib.zig");
 const zon_template = @embedFile("root/build.zig.zon");
 
+const cxx_main = @embedFile("root/cxx/main.cc");
+const cmake_template = @embedFile("root/cxx//CMakeLists.txt");
+
 fn usage() void {
     var args_it = std.process.args();
     const exe_name = args_it.next().?;
@@ -67,6 +70,8 @@ const Command = enum {
     exe,
     lib,
 
+    @"c++",
+
     fn fromStr(str: []const u8) ?Command {
         return std.meta.stringToEnum(Command, str);
     }
@@ -75,6 +80,7 @@ const Command = enum {
         return switch (self) {
             .exe => initExe(dir),
             .lib => initLib(dir),
+            .@"c++" => initCxx(dir),
         };
     }
 
@@ -86,12 +92,12 @@ const Command = enum {
 
         // src/main.zig
         {
-            try file_print(src_dir, "main.zig", src_main, "");
+            try file_print(.{ .root = src_dir, .file_name = "main.zig", .template = src_main });
         }
 
         // build.zig
         {
-            try file_print(cwd, "build.zig", build_exe, dir);
+            try file_print(.{ .root = cwd, .file_name = "build.zig", .template = build_exe, .replacement = dir });
         }
 
         // build.zig.zon
@@ -108,23 +114,12 @@ const Command = enum {
 
         // src/root.zig
         {
-            try file_print(src_dir, "root.zig", src_root, "");
-            // var root_file = try src_dir.createFile("root.zig", .{ .mode = .write_only });
-            // defer root_file.close();
-            //
-            // try root_file.writeAll(src_root);
+            try file_print(.{ .root = src_dir, .file_name = "root.zig", .template = src_root });
         }
 
         // build.zig
         {
-            try file_print(cwd, "build.zig", build_lib, dir);
-            // var build_file = try cwd.createFile("build.zig", .{ .mode = .write_only });
-            // defer build_file.close();
-            //
-            // const build_script = try std.fmt.allocPrint(allocator, build_lib, .{dir});
-            // defer allocator.free(build_script);
-            //
-            // try build_file.writeAll(build_script);
+            try file_print(.{ .root = cwd, .file_name = "build.zig", .template = build_lib, .replacement = dir });
         }
 
         // build.zig.zon
@@ -133,22 +128,45 @@ const Command = enum {
         }
     }
 
-    fn file_print(
+    fn initCxx(dir: []const u8) anyerror!void {
+        const cwd = std.fs.cwd();
+
+        var src_dir = try cwd.makeOpenPath("src", .{});
+        defer src_dir.close();
+
+        {
+            try file_print(.{ .root = src_dir, .file_name = "main.cc", .template = cxx_main });
+        }
+
+        {
+            try file_print(.{
+                .root = cwd,
+                .file_name = "CMakeLists.txt",
+                .template = cmake_template,
+                .from = "PR_NAME",
+                .replacement = dir,
+            });
+        }
+    }
+
+    const FilePrintProps = struct {
         root: std.fs.Dir,
-        comptime file_name: []const u8,
-        comptime template: []const u8,
-        replacement: []const u8,
-    ) anyerror!void {
-        var file = try root.createFile(file_name, .{});
+        file_name: []const u8 = "",
+        template: []const u8 = "",
+        from: []const u8 = "$",
+        replacement: []const u8 = "",
+    };
+    fn file_print(p: FilePrintProps) anyerror!void {
+        var file = try p.root.createFile(p.file_name, .{});
         defer file.close();
 
-        const contents = try std.mem.replaceOwned(u8, allocator, template, "$", replacement);
+        const contents = try std.mem.replaceOwned(u8, allocator, p.template, p.from, p.replacement);
         defer allocator.free(contents);
 
         try file.writeAll(contents);
     }
 
     fn build_zig_zon(root: std.fs.Dir, project_name: []const u8) anyerror!void {
-        return file_print(root, "build.zig.zon", zon_template, project_name);
+        return file_print(.{ .root = root, .file_name = "build.zig.zon", .template = zon_template, .replacement = project_name });
     }
 };
