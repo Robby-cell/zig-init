@@ -11,10 +11,20 @@ const zon_template = @embedFile("root/build.zig.zon");
 const cxx_main = @embedFile("root/cxx/main.cc");
 const cmake_template = @embedFile("root/cxx//CMakeLists.txt");
 
-fn usage() void {
+const usage = if (@import("builtin").os.tag == .windows) usageWindows else usageOther;
+fn usageOther() void {
     var args_it = std.process.args();
     const exe_name = args_it.next().?;
 
+    printUsage(exe_name);
+}
+fn usageWindows() void {
+    var args = std.process.argsWithAllocator(allocator) catch @panic("OOM");
+    defer args.deinit();
+
+    printUsage(args.next().?);
+}
+fn printUsage(exe_name: []const u8) void {
     const stderr = std.io.getStdErr().writer();
     stderr.print(
         \\Usage:
