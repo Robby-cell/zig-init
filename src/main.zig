@@ -1,4 +1,6 @@
 const std = @import("std");
+const builtin = @import("builtin");
+const slash = if (builtin.os.tag == .windows) '\\' else '/';
 
 var allocator: std.mem.Allocator = undefined;
 
@@ -68,7 +70,7 @@ pub fn main() !void {
     var buf: [1024]u8 = undefined;
     const dir = blk: {
         const path = try cwd.realpathZ(".", buf[0..]);
-        var split = std.mem.splitBackwardsScalar(u8, path, '/');
+        var split = std.mem.splitBackwardsScalar(u8, path, slash);
 
         break :blk split.next() orelse return error.RootDir; // wont't do this in root dir
     };
